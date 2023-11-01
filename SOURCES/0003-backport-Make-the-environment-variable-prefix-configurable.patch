@@ -1,0 +1,172 @@
+diff -up mod_auth_mellon-0.14.0/auth_mellon_cache.c.env_prefix mod_auth_mellon-0.14.0/auth_mellon_cache.c
+--- mod_auth_mellon-0.14.0/auth_mellon_cache.c.env_prefix	2017-10-02 11:44:08.000000000 +0200
++++ mod_auth_mellon-0.14.0/auth_mellon_cache.c	2019-06-10 09:46:36.806014513 +0200
+@@ -589,7 +589,7 @@ void am_cache_env_populate(request_rec *
+      */
+     for(i = 0; i < t->size; ++i) {
+         varname = am_cache_entry_get_string(t, &t->env[i].varname);
+-        varname_prefix = "MELLON_";
++        varname_prefix = d->env_prefix;
+ 
+         /* Check if we should map this name into another name. */
+         env_varname_conf = (am_envattr_conf_t *)apr_hash_get(
+diff -up mod_auth_mellon-0.14.0/auth_mellon_config.c.env_prefix mod_auth_mellon-0.14.0/auth_mellon_config.c
+--- mod_auth_mellon-0.14.0/auth_mellon_config.c.env_prefix	2018-03-16 08:14:54.000000000 +0100
++++ mod_auth_mellon-0.14.0/auth_mellon_config.c	2019-06-10 09:46:36.807014516 +0200
+@@ -36,6 +36,11 @@ static const char *default_endpoint_path
+  */
+ static const char *default_user_attribute = "NAME_ID";
+ 
++/* This is the default prefix to use for attributes received from the
++ * server. Customizable using the MellonEnvPrefix option
++ */
++static const char *default_env_prefix = "MELLON_";
++
+ /* This is the default name of the cookie which mod_auth_mellon will set.
+  * If you change this, then you should also update the description of the
+  * MellonVar configuration directive.
+@@ -1372,8 +1377,10 @@ const command_rec auth_mellon_commands[]
+         am_set_setenv_slot,
+         NULL,
+         OR_AUTHCFG,
+-        "Renames attributes received from the server while retaining prefix MELLON_. The format is"
+-        " MellonSetEnv <old name> <new name>."
++        "Renames attributes received from the server while retaining the"
++        " prefix. The prefix defaults to MELLON_ but can be changed with"
++        " MellonEnvPrefix."
++        " The format is MellonSetEnv <old name> <new name>."
+         ),
+      AP_INIT_TAKE2(
+         "MellonSetEnvNoPrefix",
+@@ -1383,6 +1390,13 @@ const command_rec auth_mellon_commands[]
+         "Renames attributes received from the server without adding prefix. The format is"
+         " MellonSetEnvNoPrefix <old name> <new name>."
+         ),
++    AP_INIT_TAKE1(
++        "MellonEnvPrefix",
++        ap_set_string_slot,
++        (void *)APR_OFFSETOF(am_dir_cfg_rec, env_prefix),
++        OR_AUTHCFG,
++        "The prefix to use for attributes received from the server."
++        ),
+     AP_INIT_FLAG(
+         "MellonSessionDump",
+         ap_set_flag_slot,
+@@ -1714,6 +1728,7 @@ void *auth_mellon_dir_config(apr_pool_t
+     dir->cookie_path = NULL;
+     dir->cookie_samesite = am_samesite_default;
+     dir->envattr   = apr_hash_make(p);
++    dir->env_prefix = default_env_prefix;
+     dir->userattr  = default_user_attribute;
+     dir->idpattr  = NULL;
+     dir->signature_method = inherit_signature_method;
+@@ -1868,6 +1883,10 @@ void *auth_mellon_dir_merge(apr_pool_t *
+                                      add_cfg->envattr :
+                                      base_cfg->envattr);
+ 
++    new_cfg->env_prefix = (add_cfg->env_prefix != default_env_prefix ?
++                           add_cfg->env_prefix :
++                           base_cfg->env_prefix);
++
+     new_cfg->userattr = (add_cfg->userattr != default_user_attribute ?
+                          add_cfg->userattr :
+                          base_cfg->userattr);
+diff -up mod_auth_mellon-0.14.0/auth_mellon_diagnostics.c.env_prefix mod_auth_mellon-0.14.0/auth_mellon_diagnostics.c
+--- mod_auth_mellon-0.14.0/auth_mellon_diagnostics.c.env_prefix	2018-03-16 08:14:54.000000000 +0100
++++ mod_auth_mellon-0.14.0/auth_mellon_diagnostics.c	2019-06-10 09:46:36.808014518 +0200
+@@ -442,6 +442,9 @@ am_diag_log_dir_cfg(request_rec *r, int
+                     "%sMellonCookieSameSite (cookie_samesite): %s\n",
+                     indent(level+1),
+                     am_diag_samesite_str(r, cfg->cookie_samesite));
++    apr_file_printf(diag_cfg->fd,
++                    "%sMellonEnvPrefix (env_prefix): %s\n",
++                    indent(level+1), cfg->env_prefix);
+ 
+     apr_file_printf(diag_cfg->fd,
+                     "%sMellonCond (cond): %d items\n",
+@@ -466,7 +469,7 @@ am_diag_log_dir_cfg(request_rec *r, int
+         apr_hash_this(hash_item, (void *)&key, NULL, (void *)&envattr_conf);
+ 
+         if (envattr_conf->prefixed) {
+-            name = apr_pstrcat(r->pool, "MELLON_",
++            name = apr_pstrcat(r->pool, cfg->env_prefix,
+                                envattr_conf->name, NULL);
+         } else {
+             name = envattr_conf->name;
+diff -up mod_auth_mellon-0.14.0/auth_mellon.h.env_prefix mod_auth_mellon-0.14.0/auth_mellon.h
+--- mod_auth_mellon-0.14.0/auth_mellon.h.env_prefix	2018-03-16 08:14:54.000000000 +0100
++++ mod_auth_mellon-0.14.0/auth_mellon.h	2019-06-10 09:46:36.805014510 +0200
+@@ -237,6 +237,7 @@ typedef struct am_dir_cfg_rec {
+     am_samesite_t cookie_samesite;
+     apr_array_header_t *cond;
+     apr_hash_t *envattr;
++    const char *env_prefix;
+     const char *userattr;
+     const char *idpattr;
+     LassoSignatureMethod signature_method;
+diff -up mod_auth_mellon-0.14.0/doc/user_guide/mellon_user_guide.adoc.env_prefix mod_auth_mellon-0.14.0/doc/user_guide/mellon_user_guide.adoc
+--- mod_auth_mellon-0.14.0/doc/user_guide/mellon_user_guide.adoc.env_prefix	2018-03-16 08:14:54.000000000 +0100
++++ mod_auth_mellon-0.14.0/doc/user_guide/mellon_user_guide.adoc	2019-06-10 09:48:08.422237471 +0200
+@@ -2007,11 +2007,13 @@ attributes.
+   assertion to a name of your choosing when it is placed in the Apache
+   environment. This is controlled by `MellonSetEnv` and
+   `MellonSetEnvNoPrefix` directives.  The distinction
+-  is `MellonSetEnv` always prepends the `MELLON_` prefix to the
++  is `MellonSetEnv` always prepends a prefix to the
+   environment variable name to help to prevent name collisions. The
++  prefix defaults to `MELLON_` and can be configured using the
++  `MellonEnvPrefix` configuration option. The
+   `MellonSetEnvNoPrefix` directive also remaps the assertion name to a
+   name of your choosing but it omits prepending the environment
+-  variable name with `MELLON_`. See <<map_assertion_attr_name>>
++  variable name with the prefix. See <<map_assertion_attr_name>>
+ 
+ Using the <<assertion_response,assertion example>> Mellon places these
+ environment variables in the Apache environment. See
+@@ -2096,10 +2098,12 @@ and `MellonSetEnvNoPrefix` directives. T
+ assertion attribute to a name of your choosing. The `MellonSetEnv`
+ directive follows the same convention as all other assertion
+ attributes added by Mellon in that it always prefixes the environment
+-variable name with `MELLON_` to help avoid name collisions in the
++variable name with a configurable prefix, which defaults to `MELLON_` to help avoid name collisions in the
+ Apache environment. However sometimes you do not want the `MELLON_`
+-prefix added and instead you want to use exactly the environment
+-variable name as specified., `MellonSetEnvNoPrefix` serves this role.
++prefix added. In case you simply want the variables prefixed with
++a different string, use the `MellonEnvPrefix` configuration option. If,
++instead you want to use exactly the environment variable name as specified.,
++`MellonSetEnvNoPrefix` serves this role.
+ 
+ To illustrate let's look at an example. Suppose your web app is
+ expecting an attribute which is the user's last name, specifically it
+@@ -2117,6 +2121,15 @@ MellonSetEnvNoPrefix REMOTE_USER_LASTNAM
+ Also see <<set_remote_user>> for an example of setting the `REMOTE_USER`
+ environment variable using `MellonSetEnvNoPrefix`.
+ 
++The `MellonEnvPrefix` variable might be useful e.g. if you
++are migrating from a different SP which used its own prefix
++for the variables passed by the IdP. For example, to prefix
++all variables with `NOLLEM_` you would use:
++
++----
++MellonEnvPrefix NOLLEM_
++----
++
+ === Using Mellon to apply constraints [[assertion_constraints]]
+ 
+ SAML attributes can be used for more than exporting those values to a
+diff -up mod_auth_mellon-0.14.0/README.md.env_prefix mod_auth_mellon-0.14.0/README.md
+--- mod_auth_mellon-0.14.0/README.md.env_prefix	2018-03-16 08:14:54.000000000 +0100
++++ mod_auth_mellon-0.14.0/README.md	2019-06-10 09:46:36.805014510 +0200
+@@ -253,6 +253,11 @@ MellonDiagnosticsEnable Off
+         # Default. None set.
+         MellonSetEnvNoPrefix "DISPLAY_NAME" "displayName"
+ 
++        # MellonEnvPrefix changes the string the variables passed from the
++        # IdP are prefixed with.
++        # Default: MELLON_
++        MellonEnvPrefix "NOLLEM_"
++
+         # MellonMergeEnvVars merges multiple values of environment variables
+         # set using MellonSetEnv into single variable:
+         # ie: MYENV_VAR => val1;val2;val3 instead of default behaviour of:

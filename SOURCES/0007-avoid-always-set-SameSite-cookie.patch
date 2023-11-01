@@ -1,0 +1,69 @@
+From b9d87e0deb528817689f1648999a95645b1b19ad Mon Sep 17 00:00:00 2001
+From: Keita SUZUKI <keita@osstech.co.jp>
+Date: Mon, 20 Jan 2020 11:03:14 +0900
+Subject: [PATCH] avoid always set SameSite cookie
+
+---
+ auth_mellon.h        |  5 +++++
+ auth_mellon_cookie.c | 22 ++++++++++++++++------
+ 2 files changed, 21 insertions(+), 6 deletions(-)
+
+diff --git a/auth_mellon.h b/auth_mellon.h
+index 5f5a20b..8bb8023 100644
+--- a/auth_mellon.h
++++ b/auth_mellon.h
+@@ -96,6 +96,11 @@ typedef enum {
+ } am_diag_flags_t;
+ #endif
+ 
++
++/* Disable SameSite Environment Value */
++#define AM_DISABLE_SAMESITE_ENV_VAR "MELLON_DISABLE_SAMESITE"
++
++
+ /* This is the length of the id we use (for session IDs and
+  * replaying POST data).
+  */
+diff --git a/auth_mellon_cookie.c b/auth_mellon_cookie.c
+index b2c8535..55f77a5 100644
+--- a/auth_mellon_cookie.c
++++ b/auth_mellon_cookie.c
+@@ -59,6 +59,7 @@ static const char *am_cookie_params(request_rec *r)
+     const char *cookie_domain = ap_get_server_name(r);
+     const char *cookie_path = "/";
+     const char *cookie_samesite = "";
++    const char *env_var_value = NULL;
+     am_dir_cfg_rec *cfg = am_get_dir_cfg(r);
+ 
+     if (cfg->cookie_domain) {
+@@ -69,12 +70,21 @@ static const char *am_cookie_params(request_rec *r)
+         cookie_path = cfg->cookie_path;
+     }
+ 
+-    if (cfg->cookie_samesite == am_samesite_lax) {
+-        cookie_samesite = "; SameSite=Lax";
+-    } else if (cfg->cookie_samesite == am_samesite_strict) {
+-        cookie_samesite = "; SameSite=Strict";
+-    } else if (cfg->cookie_samesite == am_samesite_none) {
+-        cookie_samesite = "; SameSite=None";
++    if (r->subprocess_env != NULL){
++        env_var_value = apr_table_get(r->subprocess_env,
++                        AM_DISABLE_SAMESITE_ENV_VAR);
++        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
++                     "%s : %s", AM_DISABLE_SAMESITE_ENV_VAR, env_var_value);
++    }
++
++    if (env_var_value == NULL){
++        if (cfg->cookie_samesite == am_samesite_lax) {
++            cookie_samesite = "; SameSite=Lax";
++        } else if (cfg->cookie_samesite == am_samesite_strict) {
++            cookie_samesite = "; SameSite=Strict";
++        } else if (cfg->cookie_samesite == am_samesite_none) {
++            cookie_samesite = "; SameSite=None";
++        }
+     }
+ 
+     secure_cookie = cfg->secure;
+-- 
+2.21.0
+

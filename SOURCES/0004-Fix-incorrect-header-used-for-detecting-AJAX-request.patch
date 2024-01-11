@@ -1,0 +1,49 @@
+From 6358a5169762ef7b89d8b6d0f1a99b006f0fdd2f Mon Sep 17 00:00:00 2001
+From: Olav Morken <olav.morken@uninett.no>
+Date: Wed, 25 Jul 2018 12:19:39 +0200
+Subject: [PATCH] Fix incorrect header used for detecting AJAX requests
+
+The code was looking for "X-Request-With", but the header is actually
+"X-Requested-With". As far as I can tell, it has always been the
+latter, at least in the jQuery source code.
+
+Fixes issue #174.
+---
+ README.md             | 2 +-
+ auth_mellon_handler.c | 4 ++--
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/README.md b/README.md
+index 0a91dc5..8d85b43 100644
+--- a/README.md
++++ b/README.md
+@@ -180,7 +180,7 @@ MellonDiagnosticsEnable Off
+         #           then we will redirect him to the login page of the IdP.
+         #
+         #           There is a special handling of AJAX requests, that are
+-        #           identified by the "X-Request-With: XMLHttpRequest" HTTP
++        #           identified by the "X-Requested-With: XMLHttpRequest" HTTP
+         #           header. Since no user interaction can happen there,
+         #           we always fail unauthenticated (not logged in) requests
+         #           with a 403 Forbidden error without redirecting to the IdP.
+diff --git a/auth_mellon_handler.c b/auth_mellon_handler.c
+index b16dc45..e33e6e9 100644
+--- a/auth_mellon_handler.c
++++ b/auth_mellon_handler.c
+@@ -3658,11 +3658,11 @@ int am_auth_mellon_user(request_rec *r)
+              * If this is an AJAX request, we cannot proceed to the IdP,
+              * Just fail early to save our resources
+              */
+-            ajax_header = apr_table_get(r->headers_in, "X-Request-With");
++            ajax_header = apr_table_get(r->headers_in, "X-Requested-With");
+             if (ajax_header != NULL &&
+                 strcmp(ajax_header, "XMLHttpRequest") == 0) {
+                     AM_LOG_RERROR(APLOG_MARK, APLOG_INFO, 0, r,
+-                      "Deny unauthenticated X-Request-With XMLHttpRequest "
++                      "Deny unauthenticated X-Requested-With XMLHttpRequest "
+                       "(AJAX) request");
+                     return HTTP_FORBIDDEN;
+             }
+-- 
+2.20.1
+

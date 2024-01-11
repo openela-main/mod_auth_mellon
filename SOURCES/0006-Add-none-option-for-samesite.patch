@@ -1,0 +1,95 @@
+From fb5ad7bf997946df4472cb94d7875ee70281d59c Mon Sep 17 00:00:00 2001
+From: Anthony Critelli <acritelli@datto.com>
+Date: Tue, 7 Jan 2020 11:14:24 -0500
+Subject: [PATCH] Add none option for samesite
+
+---
+ README.md                 | 7 +++++--
+ auth_mellon.h             | 3 ++-
+ auth_mellon_config.c      | 2 ++
+ auth_mellon_cookie.c      | 4 +++-
+ auth_mellon_diagnostics.c | 1 +
+ 5 files changed, 13 insertions(+), 4 deletions(-)
+
+diff --git a/README.md b/README.md
+index be374bc..82a88fc 100644
+--- a/README.md
++++ b/README.md
+@@ -218,8 +218,11 @@ MellonDiagnosticsEnable Off
+ 
+         # MellonCookieSameSite allows control over the SameSite value used
+         # for the authentication cookie.
+-        # The setting accepts values of "Strict" or "Lax"
+-        # If not set, the SameSite attribute is not set on the cookie.
++        # The setting accepts values of "Strict", "Lax", or "None".
++        # When using none, you should set "MellonSecureCookie On" to prevent
++        # compatibility issues with newer browsers.
++        # If not set, the SameSite attribute is not set on the cookie. In newer
++        # browsers, this may cause SameSite to default to "Lax"
+         # Default: not set
+         # MellonCookieSameSite lax
+ 
+diff --git a/auth_mellon.h b/auth_mellon.h
+index 9ef2d8a..5f5a20b 100644
+--- a/auth_mellon.h
++++ b/auth_mellon.h
+@@ -164,7 +164,8 @@ typedef enum {
+ typedef enum {
+   am_samesite_default,
+   am_samesite_lax,
+-  am_samesite_strict
++  am_samesite_strict,
++  am_samesite_none,
+ } am_samesite_t;
+ 
+ typedef enum {
+diff --git a/auth_mellon_config.c b/auth_mellon_config.c
+index 7932e2d..f1a9d12 100644
+--- a/auth_mellon_config.c
++++ b/auth_mellon_config.c
+@@ -583,6 +583,8 @@ static const char *am_set_samesite_slot(cmd_parms *cmd,
+         d->cookie_samesite = am_samesite_lax;
+     } else if(!strcasecmp(arg, "strict")) {
+         d->cookie_samesite = am_samesite_strict;
++    } else if(!strcasecmp(arg, "none")) {
++        d->cookie_samesite = am_samesite_none;
+     } else {
+         return "The MellonCookieSameSite parameter must be 'lax' or 'strict'";
+     }
+diff --git a/auth_mellon_cookie.c b/auth_mellon_cookie.c
+index 8394c18..b2c8535 100644
+--- a/auth_mellon_cookie.c
++++ b/auth_mellon_cookie.c
+@@ -1,7 +1,7 @@
+ /*
+  *
+  *   auth_mellon_cookie.c: an authentication apache module
+- *   Copyright © 2003-2007 UNINETT (http://www.uninett.no/)
++ *   Copyright Â© 2003-2007 UNINETT (http://www.uninett.no/)
+  *
+  *   This program is free software; you can redistribute it and/or modify
+  *   it under the terms of the GNU General Public License as published by
+@@ -73,6 +73,8 @@ static const char *am_cookie_params(request_rec *r)
+         cookie_samesite = "; SameSite=Lax";
+     } else if (cfg->cookie_samesite == am_samesite_strict) {
+         cookie_samesite = "; SameSite=Strict";
++    } else if (cfg->cookie_samesite == am_samesite_none) {
++        cookie_samesite = "; SameSite=None";
+     }
+ 
+     secure_cookie = cfg->secure;
+diff --git a/auth_mellon_diagnostics.c b/auth_mellon_diagnostics.c
+index 792e894..912814b 100644
+--- a/auth_mellon_diagnostics.c
++++ b/auth_mellon_diagnostics.c
+@@ -214,6 +214,7 @@ am_diag_samesite_str(request_rec *r, am_samesite_t samesite)
+     case am_samesite_default: return "default";
+     case am_samesite_lax:     return "lax";
+     case am_samesite_strict:  return "strict";
++    case am_samesite_none:    return "none";
+     default:
+         return apr_psprintf(r->pool, "unknown (%d)", samesite);
+     }
+-- 
+2.21.0
+

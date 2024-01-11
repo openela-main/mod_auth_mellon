@@ -1,0 +1,28 @@
+From 297093e6a48a4c0fd307c2206c59a8c8eb84fb53 Mon Sep 17 00:00:00 2001
+From: Valentin <awakenine@users.noreply.github.com>
+Date: Fri, 6 Sep 2019 13:30:36 +0300
+Subject: [PATCH] Update auth_mellon_mode.c
+
+Fix open redirect CVE-2019-13038
+---
+ auth_mellon_util.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/auth_mellon_util.c b/auth_mellon_util.c
+index fd442f9..7dff61e 100644
+--- a/auth_mellon_util.c
++++ b/auth_mellon_util.c
+@@ -116,6 +116,10 @@ int am_validate_redirect_url(request_rec *r, const char *url)
+ 
+     /* Sanity check of the scheme of the domain. We only allow http and https. */
+     if (uri.scheme) {
++	/* http and https schemes without hostname are invalid. */
++        if (!uri.hostname) {
++            return HTTP_BAD_REQUEST;
++	}
+         if (strcasecmp(uri.scheme, "http")
+             && strcasecmp(uri.scheme, "https")) {
+             AM_LOG_RERROR(APLOG_MARK, APLOG_ERR, 0, r,
+-- 
+2.21.0
+

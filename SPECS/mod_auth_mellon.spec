@@ -1,7 +1,7 @@
 Summary: A SAML 2.0 authentication module for the Apache Httpd Server
 Name: mod_auth_mellon
 Version: 0.17.0
-Release: 7%{?dist}
+Release: 9%{?dist}
 Source0: https://github.com/latchset/mod_auth_mellon/releases/download/v0.17.0/mod_auth_mellon-0.17.0.tar.gz
 Source1: auth_mellon.conf
 Source2: 10-auth_mellon.conf
@@ -103,6 +103,16 @@ in the doc directory for instructions on using the diagnostics build.
 %dir %attr(-, apache, apache) /run/%{name}/
 
 %changelog
+* Thu Aug 15 2024 Tomas Halman <thalman@redhat.com> - 0.17.0-9
+- Fixing mellon_create_metadata.sh script
+  Resolves: RHEL-35898
+- Publishing diagnostic module in CRB repository
+  Resolves: RHEL-33585
+
+* Wed Apr 5 2023 Tomas Halman <thalman@redhat.com> - 0.17.0-8
+- Fixing gating issue - rebuild
+  Resolves: rhbz#2184763
+
 * Tue Jul 26 2022 Tomas Halman <thalman@redhat.com> - 0.17.0-7
 - bad user/group ownership for /run/mod_auth_mellon
   Resolves: rhbz#2047948

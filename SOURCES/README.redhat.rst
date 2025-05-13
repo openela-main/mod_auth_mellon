@@ -33,7 +33,7 @@ ship with two versions of the ``mod_auth_mellon`` Apache module.
    ``/usr/lib*/httpd/modules/mod_auth_mellon.so`` 
 
 2. The ``mod_auth_mellon-diagnostics`` RPM contains the diagnostic
-   version of the Apache module
+   version of the Apache module. It is available in the CRB repository.
    ``/usr/lib*/httpd/modules/mod_auth_mellon-diagnostics.so``
 
 Because each version of the module has a different name both the
